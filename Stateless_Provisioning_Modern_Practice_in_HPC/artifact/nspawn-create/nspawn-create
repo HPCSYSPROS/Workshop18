@@ -1,0 +1,142 @@
+#!/bin/bash
+
+# This script can be used to setup a container for a node type you wish to deploy
+# The script assumes a destination to create the OS directories used to boot the container is
+# fixed and located at /containers/
+#
+# John Blaas 2017 john.blaas@colorado.edu
+#
+
+node_type=$1
+container_port=$2
+
+if [ -z "$node_type" ] || [ -z "$container_port" ]
+then
+    echo "Please provide a name and port for the node type you wish to create."
+    echo "Node type should be provided as the first argument and port as the"
+    echo "second arguement into this script"
+    exit 1
+else
+    echo "Preparing to create $node_type container"
+fi
+
+mkdir -p /containers/$node_type
+
+## This following section could likely be broken out into a seperate script or scripts if you want to deploy
+## against other OS's. This way you could add another parameter to call with this script that could then
+## go out and find the corresponding OS specific script to create the base OS directory.
+
+if [ ! -f centos-release-7-4.1708.el7.centos.x86_64.rpm ]; then
+    wget http://vault.centos.org/7.4.1708/os/x86_64/Packages/centos-release-7-4.1708.el7.centos.x86_64.rpm
+fi
+
+if [ ! -f RPM-GPG-KEY-CentOS-7 ]; then
+    wget http://vault.centos.org/7.4.1708/os/x86_64/RPM-GPG-KEY-CentOS-7
+fi
+
+rpm --import ./RPM-GPG-KEY-CentOS-7
+rpm --root=/containers/$node_type -ivh centos-release-7-4.1708.el7.centos.x86_64.rpm
+cp RPM-GPG-KEY-CentOS-7 /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+cp RPM-GPG-KEY-CentOS-7 /containers/$node_type/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+yum --installroot=/containers/$node_type groupinstall base -y
+yum --installroot=/containers/$node_type install openssh-server -y
+
+## This portion sets up systemd unit files to enable us to be able to ssh
+## into the containers on different socket activated ports for both the host OS
+## and the OS running within the container that is provisioned
+
+## This creates the host service file for starting the container
+cat > /etc/systemd/system/$node_type.service << EOF
+
+[Unit]
+Description=$node_type container
+
+[Service]
+ExecStart=/usr/bin/systemd-nspawn -jbD /containers/$node_type 3
+KillMode=process
+EOF
+
+## This creates the sshd socket service on the host for port activation
+cat > /etc/systemd/system/$node_type.socket << EOF
+
+[Unit]
+Description=The SSH socket of $node_type container
+
+[Socket]
+ListenStream=$container_port
+EOF
+
+## This creates the sshd socket service in the container
+cat > /containers/$node_type/etc/systemd/system/sshd.socket << EOF
+
+[Unit]
+Description=SSH Socket for Per-Connection Servers
+
+[Socket]
+ListenStream=$container_port
+Accept=yes
+EOF
+
+## This creates the sshd service file to accept forwarded connections
+cat > /containers/$node_type/etc/systemd/system/sshd@.service << EOF 
+[Unit]
+Description=SSH Per-Connection Server for %I
+
+[Service]
+ExecStart=-/usr/sbin/sshd -i
+StandardInput=socket
+EOF
+
+## Softlink the sshd socket to bring up the service on container boot
+
+mkdir -p /containers/$node_type/etc/systemd/system/sockets.target.wants
+ln -s /containers/$node_type/etc/systemd/system/sshd.socket /containers/$node_type/etc/systemd/system/sockets.target.wants/sshd.socket
+
+## Finally create a ssh keypair for root to login to the container and setup sshd_config
+mkdir -p /containers/$node_type/root/.ssh
+chmod 700 /containers/$node_type/root/.ssh
+
+echo "Generating root keypair now, leave the passphrase blank for passwordless authentication"
+ssh-keygen -t rsa -b 4096 -f /root/.ssh/$node_type-rsa -q
+cat /root/.ssh/$node_type-rsa.pub >> /containers/$node_type/root/.ssh/authorized_keys
+
+## Here we place a basic SSHD configuration so that we can ssh into the container
+
+cat > /containers/$node_type/etc/ssh/sshd_config << EOF
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+SyslogFacility AUTHPRIV
+
+AuthorizedKeysFile	.ssh/authorized_keys
+
+HostbasedAuthentication yes
+PasswordAuthentication yes
+ChallengeResponseAuthentication yes
+
+PermitRootLogin without-password
+
+UsePAM yes
+
+X11Forwarding yes
+
+UsePrivilegeSeparation sandbox		# Default for new installations.
+
+AcceptEnv LANG LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES
+AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
+AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
+AcceptEnv XMODIFIERS
+
+Subsystem	sftp	/usr/libexec/openssh/sftp-server
+EOF
+
+## Finally, lets put in place the softlink from sbin/init to init to make the final image bootable
+
+cd /containers/$node_type
+ln -s sbin/init ./init
+
+## Great news everyone! We are done! Remeber to setup a ssh config alias for the container
+
+echo "The $node_type container is now prepared"

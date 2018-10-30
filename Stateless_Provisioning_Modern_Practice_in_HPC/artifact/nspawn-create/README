@@ -1,0 +1,12 @@
+# Overview
+
+We use this script to initially create a container and related service unit files for the host such that the container can be accessed via SSH from the host OS. Included is the setup of some ssh keys to allow for passwordless root access from the Host OS to the container OS. You will still need to take care to also add a corresponding ~/.ssh/config entry and alias the container as you see fit.
+
+# Installation
+
+To install this script simply copy the script in full and place it on the gitlab-runner server and grant the appropriate execute permissions. Once executed you should be left with a ready OS directory tree, and the ability to ssh into the container using the socket activation provided.
+
+# Evaluation and Expected Result
+
+You should be left with a complete OS directory located at /containers/<image name> on the gitlabrunner host. You will need to setup ssh config into the host to allow for gitlab-runner to ssh into the container as root. After SSH'ing into the container or trying to, the container service will remain active unless you have placed a cron script within the container that shuts the machine down after a period of inactivity. To poweroff the container manually you can issue machinectl poweroff container-name, which will poweroff the container. As long as the socket service for the container is still running on the host OS, you should be able to spin the container up again by only starting a ssh connection to the container.
+

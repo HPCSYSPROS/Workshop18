@@ -1,0 +1,111 @@
+#!/bin/bash
+##
+# SLURM health check program
+# ulf.tigerstedt@csc.fi 2012
+# johan.guldmyr@csc.fi 2014
+# john.blaas@colorado.edu 2017
+# 
+# Usage:
+# scontrol update node=ae5 state=drain reason=reboot
+# What happens:
+# When the node is drained slurm reason field is changed to "rebooting" and then it is rebooted.
+# When slurm on the node is back online nhc will on the next run resume the node.
+
+FAILED=0
+ERROR=""
+HOSTNAME=`hostname -s`
+DEBUG=""
+TIMEOUT=900
+
+STATELINE=`scontrol -o show node $HOSTNAME`
+# Check if this is a SLURM worker node at all
+if [ $? = 1 ] ; then
+	#echo Not a slurm node
+	exit
+fi
+if [ "$1" = "-d" ]; then
+	DEBUG="1"
+fi
+
+check_reboot_slurm() {
+# The name of this function is defined in nhc.conf as a check.
+
+for a in $STATELINE; do
+	LABEL=`echo $a | cut -d = -f 1`
+	PARAMETER=`echo $a | cut -d = -f 2`
+	
+	if [ $LABEL = "Reason" ]; then 
+		REASON=$PARAMETER
+	fi
+	if [ $LABEL = "State" ]; then 
+		STATE=$PARAMETER
+	fi
+done
+if [ -n "$DEBUG" ]; then echo Slurm thinks $HOSTNAME has STATE=$STATE and REASON=$REASON; fi
+
+if [ "$REASON" = "rebooting" ]; then
+	if [ "$STATE" = "DOWN+DRAIN" -o "$STATE" = "IDLE+DRAIN" ]; then
+		if [ -n "$DEBUG" ]; then echo Resuming after reboot ; fi
+		# Bring up GPFS before RESUMING service
+		/usr/lpp/mmfs/bin/mmstartup
+        # Sleep for a bit to wait for GPFS to make connections to the NSD servers
+		sleep 30
+        # Now mount all GPFS filesystems
+		/usr/lpp/mmfs/bin/mmmount all
+        # Create an event in our slurm InfluxDB database
+                curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="Rolling Reboot",message="Host ready for production",tags="slurm"'
+		# Set node back to production
+		scontrol update NodeName=$HOSTNAME state=RESUME reason=""
+	fi
+fi
+
+if [ "$REASON" = "gpfs-restarting" ]; then
+        if [ "$STATE" = "DOWN+DRAIN" -o "$STATE" = "IDLE+DRAIN" ]; then
+                if [ -n "$DEBUG" ]; then echo Resuming after reboot ; fi
+                # Bring up GPFS before RESUMING service
+                /usr/lpp/mmfs/bin/mmstartup
+                # Sleep for a bit to wait for GPFS to make connections to the NSD servers
+                sleep 30
+                # Now mount all GPFS filesystems
+                /usr/lpp/mmfs/bin/mmmount all
+                # Create an event in our slurm InfluxDB database
+                curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="GPFS Configuration Complete",message="Host ready for production",tags="slurm,gpfs"'
+                # Set node back to production
+                scontrol update NodeName=$HOSTNAME state=RESUME reason=""
+        fi
+fi
+
+if [ "$REASON" = "gpfs-restart" -a "$STATE" = "IDLE+DRAIN" ]; then
+        if [ -n "$DEBUG" ]; then echo Rebooting ; fi
+        sleep 2
+        # Shutdown GPFS and give it 30 seconds to complete
+        mmshutdown
+        sleep 30
+        # Create an event in our slurm InfluxDB database
+        curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="GPFS Configuration Starting",message="GPFS configuration being applied",tags="slurm,gpfs"
+        # stop slurm to ensure another NHC does not run again while we are updating
+        service slurm stop
+        sleep 2
+        # Set the slurm reason
+        scontrol update NodeName=$HOSTNAME state=DOWN reason="gpfs-restarting"
+        # Run puppet agent to pull in new config, part of our config forces slurm to be started again
+        puppet agent -t
+fi
+
+if [ "$REASON" = "reboot" -a "$STATE" = "IDLE+DRAIN" ]; then
+	if [ -n "$DEBUG" ]; then echo Rebooting ; fi
+	sleep 2
+        curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="Rolling Reboot",message="Rebooting for Updates",tags="slurm"'
+        # Shutdown GPFS and give it 30 seconds
+        mmshutdown
+        sleep 30
+	# stop slurm just in case
+	service slurm stop
+	sleep 2
+	scontrol update NodeName=$HOSTNAME state=DOWN reason=rebooting
+	/sbin/reboot
+fi
+
+if [ -n "$DEBUG" ]; then echo Health check done; fi
+
+}

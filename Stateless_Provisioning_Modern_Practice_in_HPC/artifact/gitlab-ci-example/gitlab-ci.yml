@@ -1,0 +1,21 @@
+# CPIORoot CI
+
+stages:
+  - build
+  - compile
+
+test-config:
+  stage: build
+  script:
+    - ansible-playbook -i Production production.yaml
+    - rvm use ruby-2.4.0
+    - eval $(ssh-agent -s)
+    - ssh-add
+    - inspec exec tests/base -t ssh://root@compute:23 --log-level=warn
+    
+build-image:
+  stage: compile
+  script:
+    - cd /containers/compute
+    - echo $CI_COMMIT_REF_NAME $CI_COMMIT_SHA > /etc/image-release
+    - find | cpio -oc | gzip > /images/curc-compute.cpio.gz

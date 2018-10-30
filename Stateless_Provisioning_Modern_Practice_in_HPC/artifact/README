@@ -1,0 +1,15 @@
+# Overview
+
+Here you will find in seperate folders the three artifacts that are used in our environments to help
+create a CI process in which to test the configuration management code that we use to create our
+stateless images. We include the tool we use to create the OS directories and include services 
+needed to allow containers to be created from them.  
+
+We also include a sample gitlab CI file that can be used to spawn the image containers on the Gitlab runner hosts, run the configuration 
+management code on them, run compliance tests to verify the state of the image, and finally 
+take the OS directory and create a CPIO based image that can then be distributed to the TFTP boot server
+to finally boot nodes into the image via PXE.
+
+Finally we include a rolling reboot script that can be used or adapted to provide a mechanism
+to apply updates and reboot nodes into updated images without having to take downtime to apply 
+updates to nodes.

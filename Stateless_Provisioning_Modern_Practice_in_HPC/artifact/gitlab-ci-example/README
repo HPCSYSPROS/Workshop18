@@ -1,0 +1,16 @@
+# Overview
+
+This appendix includes information regarding the .gitlab-ci.yaml file we use to test our compute node images within the Gitlab Continous Integration software. This file is read by the gitlab-runners which instructs them on what actions to take in order to test the code in the repository.
+
+# Installation
+
+To install this simply create a file with the name .gitlab-ci.yaml in the root directory of your git repository. Then commit the file to your Gitlab repository and confirm within the GUI that there are no syntax errors within the file.
+
+# Expected Result and evaluation
+
+This should allow you to start testing Ansible based code given that you have SSH access setup between the gitlab-runner host and the container. This also assumes that you have some Inspec tests created and placed inside the same repository as the Ansible code.
+
+This Gitlab CI file assumes a very basic repository in which only one node image is created. When dealing with multiple images consideration should be taken into account with regards to the CI file such that you are effectively only building and testing against one image. There are several ways you can go about doing this, with the first approach being setting up a staging or testing branch for each node type. Each staging or testing branch would have a Gitlab CI file in it, with the production branch of the repo having no such file, this way you can rebase changes from the production branch where you should aim to store all Ansible code and possibly the Inspec compliance code. In each staging or testing branch the Gitlab CI file would only apply Ansible code for the node image type it controls and then only runs the Inspec compliance tests on the container that matches the node type.
+
+The second approach you could take is to separate the Ansible configuration and Inspec compliance test code into a stand alone repository. Then for each node type create a repository that only contains a set of group\_vars files to be used by Ansible to apply configuration, and the Gitlab CI file targeting the node type. The Gitlab CI file should be changed to then add a step to clone the Ansible configuration and Inspec compliance test code and use the node type repository's group\_vars to bring in the required variables. This second approach can be useful if you want to (within reason) allow for the shareholders (condo style deployment of resources in mind) of a certain node type to make changes to their image without the need of system administrator intervention. If for instance you have setup an Ansible play that pulls in a list of packages from group\_vars to install, the shareholders could conceivably edit those packages within the group\_vars and have a new image built once the new variables have been committed.
+

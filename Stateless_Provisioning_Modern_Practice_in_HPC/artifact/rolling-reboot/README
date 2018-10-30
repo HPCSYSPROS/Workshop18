@@ -1,0 +1,18 @@
+# Overview
+
+This script was modified based on work done by Johan Guldmyr as part of a merge request submitted to the NHC code base on Github to enable rolling reboots of nodes, specifically in diskless clusters\cite{guldmyr2015}. To it we added site specific commands that we needed in order to safely bring down and reboot the node as well as indicating in our logs and metrics that a rolling update was taking place. With a little more effort this script could easily be used on stateful clusters as well with some thought put into site specific actions that must happen on a node before it can be safely brought in to production.
+
+# Installation
+
+To install this script just copy script and place it in the directory /etc/nhc/scripts. Once you have done that you then will need to add an entry into the nhc.conf file on the node that executes the check on each node you wish to have the ability to do rolling updates on. After adding the entry and saving the file you will now be able to have the node perform rolling updates.
+
+Care should be taken to also make adjustments to the rolling reboot script in order to effectively manage the shutdown and startup of the node. For instance in our environment we use GPFS as a parallel storage and scratch space, so we have added in commands to properly shutdown GPFS before taking down the node to avoid polluting our logs with GPFS expel notices, but to also insure that GPFS completes all pending writes on a node.  Additionally we also have included commands that insert an event into an InfluxDB database which we use to provide annotations on our node view dashboards as to when a node was brought down for a rolling update and when it is returned to production.
+
+# Evaluation and Expected result
+
+You can use this script/check for NHC to effectively apply updates on nodes, whether they be BIOS changes, upgrading the image itself for diskless clusters, or for simply applying changes which do not need to be applied to all nodes in a cluster at once. To start the process you will only have to set a node in Slurm to have a state of DRAIN and assign the reason as "reboot". Once that has been done each time the NHC script executes on the node it will check whether the node is in a state of IDLE and DRAIN. 
+
+Once jobs have completed on the node and the node enters the IDLE and DRAIN state the NHC will start the shutdown process, change it's reason in Slurm and promptly shutdown. After rebooting, NHC will once again execute as soon as the Slurm service starts again, and the commands under the "rebooting" section of the check will be executed in order to bring the node back into a state that should allow it to return to production.
+
+It is important to note that this script assumes that you have setup the nodes in your cluster to come up in a state that allows the slurm service to start without errors.
+
