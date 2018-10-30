@@ -24,7 +24,7 @@
 ### [xCAT and Masterless Puppet: Aiming For Ideal Configuration Management](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/ws_hpcsysp105.pdf) [[artifact](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/artifact)]
 **Authors:** Jason St. John
 
-### [Stateless Provisioning: Modern Practice in HPC](Stateless_Provisioning_Modern_Practice_in_HPC/ws_hpcsysp107.pdf) [[artifact](Stateless_Provisioning_Modern_Practice_in_HPC/artifact)
+### [Stateless Provisioning: Modern Practice in HPC](Stateless_Provisioning_Modern_Practice_in_HPC/ws_hpcsysp107.pdf) [[artifact](Stateless_Provisioning_Modern_Practice_in_HPC/artifact)]
 **Authors:** John Blaas, John Roberts
 
 ### [Next-generation cluster management architecture and software](Next-generation_cluster_management_architecture_and_software/ws_hpcsysp109.pdf)
