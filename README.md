@@ -12,6 +12,16 @@
 ### [Compliant Cloud+Campus Hybrid HPC Infrastructure](Compliant_Cloud_Campus_Hybrid_HPC_Infrastructure/ws_hpcsysp108.pdf)
 **Authors:** Matt Vander Werf, Brenden Judson, Paul Brenner
 
-### [cgroups py : Using Linux Control Groups and Systemd to Manage CPU Time and Memory](cgroups_py_Using_Linux_Control_Groups_and_Systemd_to_Manage_CPU_Time_and_Memory/ws_hpcsysp113.pdf) [[artifact](cgroups_py_Using_Linux_Control_Groups_and_Systemd_to_Manage_CPU_Time_and_Memory/artifact)
+### [cgroups py : Using Linux Control Groups and Systemd to Manage CPU Time and Memory](cgroups_py_Using_Linux_Control_Groups_and_Systemd_to_Manage_CPU_Time_and_Memory/ws_hpcsysp113.pdf) [[artifact](cgroups_py_Using_Linux_Control_Groups_and_Systemd_to_Manage_CPU_Time_and_Memory/artifact)]
 **Authors:** Curtis Maves
+
+### [Making Container Easier with HPC Container Maker](Making_Container_Easier_with_HPC_Container_Maker/ws_hpcsysp103.pdf)
+**Authors:** Scott McMillan
+
+### [Rapid Deployment of Bare-Metal and In-Container HPC clusters using OpenHPC playbooks](Rapid_Deployment_of_Bare-Metal_and_In-Container_HPC_clusters_using_OpenHPC_playbooks/ws_hpcsysp111.pdf) [[artifact](Rapid_Deployment_of_Bare-Metal_and_In-Container_HPC_clusters_using_OpenHPC_playbooks/artifact)]
+**Authors:** Joshua Higgins, Taha Al-Jody, Violeta Holmes
+
+### [xCAT and Masterless Puppet: Aiming For Ideal Configuration Management](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/ws_hpcsysp105.pdf) [[artifact](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/artifact)
+**Authors:** Jason St. John
+
 
