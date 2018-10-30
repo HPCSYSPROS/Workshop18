@@ -13,7 +13,7 @@
 **Authors:** Matt Vander Werf, Brenden Judson, Paul Brenner
 
 ### [cgroups py : Using Linux Control Groups and Systemd to Manage CPU Time and Memory](cgroups_py_Using_Linux_Control_Groups_and_Systemd_to_Manage_CPU_Time_and_Memory/ws_hpcsysp113.pdf) [[artifact](cgroups_py_Using_Linux_Control_Groups_and_Systemd_to_Manage_CPU_Time_and_Memory/artifact)]
-**Authors:** Curtis Maves
+**Authors:** Curtis Maves, Jason St. John
 
 ### [Making Container Easier with HPC Container Maker](Making_Container_Easier_with_HPC_Container_Maker/ws_hpcsysp103.pdf)
 **Authors:** Scott McMillan
