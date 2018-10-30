@@ -21,7 +21,11 @@
 ### [Rapid Deployment of Bare-Metal and In-Container HPC clusters using OpenHPC playbooks](Rapid_Deployment_of_Bare-Metal_and_In-Container_HPC_clusters_using_OpenHPC_playbooks/ws_hpcsysp111.pdf) [[artifact](Rapid_Deployment_of_Bare-Metal_and_In-Container_HPC_clusters_using_OpenHPC_playbooks/artifact)]
 **Authors:** Joshua Higgins, Taha Al-Jody, Violeta Holmes
 
-### [xCAT and Masterless Puppet: Aiming For Ideal Configuration Management](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/ws_hpcsysp105.pdf) [[artifact](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/artifact)
+### [xCAT and Masterless Puppet: Aiming For Ideal Configuration Management](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/ws_hpcsysp105.pdf) [[artifact](xCAT_and_Masterless_Puppet_Aiming_For_Ideal_Configuration_Management/artifact)]
 **Authors:** Jason St. John
 
+### [Stateless Provisioning: Modern Practice in HPC](Stateless_Provisioning_Modern_Practice_in_HPC/ws_hpcsysp107.pdf) [[artifact](Stateless_Provisioning_Modern_Practice_in_HPC/artifact)
+**Authors:** John Blaas, John Roberts
 
+### [Next-generation cluster management architecture and software](Next-generation_cluster_management_architecture_and_software/ws_hpcsysp109.pdf)
+**Authors:** Paul Peltz Jr., Lowell Wofford
