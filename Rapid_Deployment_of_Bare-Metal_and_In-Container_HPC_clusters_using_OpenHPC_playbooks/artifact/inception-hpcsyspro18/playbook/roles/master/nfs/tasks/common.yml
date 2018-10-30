@@ -1,0 +1,18 @@
+---
+
+- name: NFS - add /home to /etc/exports
+  lineinfile:
+    path: /etc/exports
+    state: present
+    regexp: '^\/home.*'
+    line: '/home *(rw,no_subtree_check,fsid=10,no_root_squash)'
+
+- name: NFS - add /opt/ohpc/pub to /etc/exports
+  lineinfile:
+    path: /etc/exports
+    state: present
+    regexp: '^\/opt\/ohpc\/pub.*'
+    line: '/opt/ohpc/pub *(ro,no_subtree_check,fsid=11)'
+
+- name: NFS - run exportfs
+  shell: "exportfs -a"

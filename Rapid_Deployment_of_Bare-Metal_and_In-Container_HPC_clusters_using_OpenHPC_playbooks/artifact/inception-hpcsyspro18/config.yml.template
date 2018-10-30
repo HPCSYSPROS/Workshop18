@@ -1,0 +1,80 @@
+# Set master/headnode network identification
+sms_name: headnode
+sms_ip:
+sms_eth_internal:
+
+# Set the middleware used for deployment
+deploy: xCAT
+resource_manager: pbs
+
+# When using xcat, can be stateless or stateful
+xcat_mode: stateful
+
+# Choose whether the headnode will accept jobs
+sms_accept_jobs: no
+
+# The root password to be set on each node
+node_root_password: changme
+
+# Private network settings
+domain_name: local
+internal_netmask:
+ntp_server:
+
+# BMC login (optional)
+bmc_username:
+bmc_password:
+
+# ISO to use for node OS image. Must be on master/headnode at this path!
+iso_path:
+
+# Proxy server
+# If you need to access the internet via a proxy to download packages
+proxy_host:
+proxy_port:
+proxy_username:
+proxy_password:
+
+# Repository settings
+# Valid repository types:
+# - online      download all packages from upstream
+# - cache       deploy squid to cache downloaded packages for compute nodes
+# - mirror      create a local repository mirror (requires large disk space)
+# - local       use already existing mirror that has been created on the master
+# When using online or cache, specify the upstream repo to use
+# When using a mirror or local, specify the filesystem path on the master
+# Where a repository supports package signing, e.g. gpgcheck, it might not work
+# behind a proxy, so the default is to disable. 
+repository_type: online
+package_signing: no
+ohpc_repo_dir:
+epel_repo_dir:
+yum_repos:
+  ohpc:
+    url: "http://build.openhpc.community/OpenHPC:/1.3/CentOS_7"
+    key: "http://build.openhpc.community/OpenHPC:/1.3/CentOS_7/repodata/repomd.xml.key"
+  ohpc_updates:
+    url: "http://build.openhpc.community/OpenHPC:/1.3/updates/CentOS_7"
+    key: "http://build.openhpc.community/OpenHPC:/1.3/updates/CentOS_7/repodata/repomd.xml.key"
+  epel:
+    url: "https://anorien.csc.warwick.ac.uk/mirrors/epel/7/x86_64/"
+    key: "https://anorien.csc.warwick.ac.uk/mirrors/epel/RPM-GPG-KEY-EPEL-7"
+cache_port: "3128"
+
+# Development tools
+compilers: ['gnu7-compilers-ohpc']
+mpi_libs: ['openmpi3-gnu7-ohpc', 'mpich-gnu7-ohpc']
+default_env: lmod-defaults-gnu7-openmpi3-ohpc
+
+# Extras
+# Which extras to enable, e.g. ['lustre', 'nagios', 'ganglia']
+enable_extras: []
+sysmgmtd_host:
+mgs_fs_name:
+nagios_web_password:
+
+# Infiniband
+infiniband: no
+ipoib: no
+sms_ipoib:
+ipoib_netmask:

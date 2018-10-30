@@ -1,0 +1,17 @@
+---
+
+- name: Squid - install via Yum
+  yum:
+    name: squid
+    state: present
+
+- name: Squid - configure /etc/squid.conf
+  template:
+    src: "{{ role_path }}/files/squid.conf.j2"
+    dest: /etc/squid/squid.conf
+
+- name: Squid - ensure service is enabled and started
+  service:
+    name: squid
+    enabled: yes
+    state: started

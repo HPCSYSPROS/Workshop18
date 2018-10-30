@@ -1,0 +1,25 @@
+---
+
+- name: Local repository - install required tools via Yum
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - createrepo
+    - yum-utils
+
+- name: Local repository - use a directory already exposed by xCAT web server
+  set_fact:
+    local_repo_dir: "/install/local_repo"
+  when: deploy == 'xCAT'
+
+- name: Local repository - ensure directory exists
+  file:
+    path: "{{ local_repo_dir }}"
+    state: directory
+
+- name: Local repository - add the perl-Switch RPM to the repository
+  shell: "yumdownloader --destdir {{ local_repo_dir }} perl-Switch"
+
+- name: Local repository - initialise the repository
+  shell: "createrepo {{ local_repo_dir }}"

@@ -1,0 +1,8 @@
+---
+
+- name: OpenHPC - install ohpc-base via Yum
+  yum:
+    name: "{{item}}"
+    state: present
+  with_items:
+    - ohpc-base

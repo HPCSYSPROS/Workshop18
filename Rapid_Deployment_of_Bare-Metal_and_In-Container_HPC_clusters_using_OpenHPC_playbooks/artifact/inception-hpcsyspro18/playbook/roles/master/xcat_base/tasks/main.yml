@@ -1,0 +1,10 @@
+---
+
+- import_tasks: centos.yml
+  when:
+    - ansible_distribution == 'CentOS'
+    - deploy == 'xCAT'
+
+- import_tasks: common.yml
+  when:
+    - deploy == 'xCAT'

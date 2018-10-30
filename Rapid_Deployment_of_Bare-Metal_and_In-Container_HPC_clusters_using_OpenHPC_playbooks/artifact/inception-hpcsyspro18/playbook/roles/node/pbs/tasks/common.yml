@@ -1,0 +1,43 @@
+---
+
+- name: PBS - add SMS server to pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_SERVER='
+    line: 'PBS_SERVER={{sms_name}}.{{domain_name}}'
+
+- name: PBS - add SMS server to mom_priv/config
+  lineinfile:
+    path: /var/spool/pbs/mom_priv/config
+    regexp: '^.clienthost'
+    line: '$clienthost {{sms_name}}.{{domain_name}}'
+
+- name: PBS - disable server in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_SERVER='
+    line: 'PBS_START_SERVER=0'
+
+- name: PBS - disable scheduler in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_SCHED='
+    line: 'PBS_START_SCHED=0'
+
+- name: PBS - disable comm in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_COMM='
+    line: 'PBS_START_COMM=0'
+
+- name: PBS - enable mom in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_MOM='
+    line: 'PBS_START_MOM=1'
+
+- name: PBS - enable and start client
+  service:
+    name: pbs
+    enabled: yes
+    state: started

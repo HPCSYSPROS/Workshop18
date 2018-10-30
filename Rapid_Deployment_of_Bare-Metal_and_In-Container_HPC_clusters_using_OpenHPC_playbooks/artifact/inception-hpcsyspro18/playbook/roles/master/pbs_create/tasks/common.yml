@@ -1,0 +1,17 @@
+---
+
+- name: PBS - get list of nodes to check
+  set_fact:
+    nodes_to_check: "{{groups['nodes']}}"
+
+- name: PBS - check if nodes are defined
+  shell: "qmgr -c 'print node {{item}}'"
+  register: r
+  changed_when: r.rc == 1
+  failed_when: r.rc > 1
+  with_items: "{{nodes_to_check}}"
+
+- name: PBS - define nodes in the database
+  shell: "qmgr -c 'create node {{item.item}}'"
+  with_items: "{{r.results}}"
+  when: item.changed

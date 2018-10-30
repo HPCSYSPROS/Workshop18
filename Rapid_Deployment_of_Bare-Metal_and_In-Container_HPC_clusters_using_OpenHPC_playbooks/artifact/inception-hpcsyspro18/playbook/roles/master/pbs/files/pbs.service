@@ -1,0 +1,17 @@
+[Unit]
+Description=PBS Professional
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+DefaultDependencies=true
+
+[Service]
+Type=forking
+GuessMainPID=no
+IgnoreSIGPIPE=no
+TimeoutSec=5min
+Restart=no
+ExecStart=/etc/init.d/pbs start
+ExecStop=/etc/init.d/pbs stop
+
+[Install]
+WantedBy=multi-user.target

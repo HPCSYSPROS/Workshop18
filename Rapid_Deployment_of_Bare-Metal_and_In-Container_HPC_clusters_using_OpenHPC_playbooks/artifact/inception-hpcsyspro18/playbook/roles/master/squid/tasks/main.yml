@@ -1,0 +1,6 @@
+---
+
+- import_tasks: centos.yml
+  when:
+    - ansible_distribution == 'CentOS'
+    - repository_type == 'cache'

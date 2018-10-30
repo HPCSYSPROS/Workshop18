@@ -1,0 +1,9 @@
+---
+
+- import_tasks: centos.yml
+  when:
+    - (ansible_distribution == 'CentOS')
+    - resource_manager == 'pbs'
+
+- import_tasks: common.yml
+  when: resource_manager == 'pbs'

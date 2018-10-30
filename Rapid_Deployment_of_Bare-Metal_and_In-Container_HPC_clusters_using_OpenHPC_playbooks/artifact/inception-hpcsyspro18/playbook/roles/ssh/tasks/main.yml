@@ -1,0 +1,15 @@
+---
+
+- name: SSH - enable public key authentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '#?PubkeyAuthentication yes'
+    line: 'PubkeyAuthentication yes'
+    state: present
+
+- name: SSH - permit root login
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '#?PermitRootLogin yes'
+    line: 'PermitRootLogin yes'
+    state: present

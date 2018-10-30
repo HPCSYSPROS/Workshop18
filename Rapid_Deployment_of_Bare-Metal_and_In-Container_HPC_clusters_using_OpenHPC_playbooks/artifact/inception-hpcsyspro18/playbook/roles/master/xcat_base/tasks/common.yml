@@ -1,0 +1,53 @@
+---
+
+- name: xCAT - register internal provisioning interface for DHCP
+  command: 'chdef -t site dhcpinterfaces="xcatmn|{{sms_eth_internal}}"'
+
+- name: xCAT - import node OS install media
+  command: 'copycds {{iso_path}}'
+
+- name: xCAT - set node root password
+  command: "chtab key=system passwd.username=root passwd.password={{node_root_password}}"
+
+- name: xCAT - set domain name
+  command: "chdef -t site domain={{domain_name}}"
+
+- name: xCAT - set Infiniband network
+  command: "chdef -t network -o ib0 mask={{ipoib_netmask}} net={{sms_ipoib}}"
+  when: ipoib
+
+- name: xCAT - query netboot image for stateless cluster
+  shell: "lsdef -t osimage | grep netboot | awk '{print $1}'"
+  register: osimage
+  when: xcat_mode == 'stateless'
+
+- name: xCAT - build initial chroot image for stateless cluster
+  command: "genimage {{osimage.stdout_lines[0]}}"
+  when: xcat_mode == 'stateless'
+
+- name: xCAT - install updated xNBA based on latest iPXE (bios)
+  copy:
+    src: xnba.kpxe
+    dest: /tftpboot/xcat/xnba.kpxe
+    backup: yes
+    owner: root
+    group: root
+    mode: 0644
+
+- name: xCAT - install updated xNBA based on latest iPXE (efi)
+  copy:
+    src: xnba.efi
+    dest: /tftpboot/xcat/xnba.efi
+    backup: yes
+    owner: root
+    group: root
+    mode: 0644
+
+- name: xCAT - copy new xNBA plugin to remove BOOTIF argument
+  copy:
+    src: xnba.pm
+    dest: /opt/xcat//lib/perl/xCAT_plugin/xnba.pm
+    backup: yes
+    owner: root
+    group: root
+    mode: 0644

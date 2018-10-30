@@ -1,0 +1,9 @@
+---
+
+- hosts: master
+  vars_files:
+    - ../config.yml
+  roles:
+    - validation/inventory
+    - master/xcat_mkdef
+    - master/pbs_create

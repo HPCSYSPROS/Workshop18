@@ -1,0 +1,18 @@
+---
+
+- import_tasks: centos.yml
+  when:
+    - ansible_distribution == 'CentOS'
+
+- name: "NTP - set {{ntp_server}} in /etc/ntp.conf"
+  lineinfile:
+    path: /etc/ntp.conf
+    state: present
+    regexp: '^server='
+    line: 'server={{ntp_server}}'
+
+- name: NTP - ensure service is enabled and started
+  service:
+    name: ntpd
+    enabled: yes
+    state: started

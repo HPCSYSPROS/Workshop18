@@ -1,0 +1,14 @@
+---
+
+- hosts: nodes
+  vars_files:
+    - ../config.yml
+  roles:
+    - repos
+    - common/firewall
+    - common/ntp
+    - node/sync_files
+    - node/nfs
+    - ssh
+    - node/ohpc_base_compute
+    - node/pbs

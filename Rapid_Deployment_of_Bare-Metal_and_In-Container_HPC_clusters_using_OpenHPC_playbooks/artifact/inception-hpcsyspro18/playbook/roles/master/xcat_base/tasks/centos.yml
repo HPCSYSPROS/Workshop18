@@ -1,0 +1,24 @@
+---
+
+- name: xCAT - core repository via Yum
+  yum_repository:
+    name: xCAT-core
+    description: xCAT core repository
+    baseurl: http://xcat.org/files/xcat/repos/yum/latest/xcat-core
+    enabled: yes
+    gpgcheck: yes
+    gpgkey: http://xcat.org/files/xcat/repos/yum/latest/xcat-core/repodata/repomd.xml.key
+
+- name: xCAT - dependencies for RH 7 x86_64
+  yum_repository:
+    name: xCAT-dep
+    description: xCAT dependencies
+    baseurl: http://xcat.org/files/xcat/repos/yum/xcat-dep/rh7/x86_64
+    enabled: yes
+    gpgcheck: yes
+    gpgkey: http://xcat.org/files/xcat/repos/yum/xcat-dep/rh7/x86_64/repodata/repomd.xml.key
+
+- name: xCAT - install via Yum (this may take several minutes)
+  yum:
+    name: xCAT
+    state: present

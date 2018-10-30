@@ -1,0 +1,7 @@
+---
+
+- name: Firewall - disable firewalld for installation
+  service:
+    name: firewalld
+    enabled: no
+    state: stopped

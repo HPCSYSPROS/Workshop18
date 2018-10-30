@@ -1,0 +1,15 @@
+---
+
+- name: Sync files - get files from headnode
+  synchronize:
+    src: "{{ item }}"
+    dest: "{{ item }}"
+  delegate_to: "{{groups['master'][0]}}"
+  with_items:
+    - "/etc/hosts"
+    - "/etc/passwd"
+    - "/etc/group"
+    - "/etc/shadow"
+  tags:
+    - sync
+    - sync_files

@@ -1,0 +1,6 @@
+---
+
+- name: NTP - install via Yum
+  yum:
+    name: ntp
+    state: present

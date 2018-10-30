@@ -1,0 +1,19 @@
+---
+
+- name: OpenHPC compilers - install via Yum
+  yum:
+    name: "{{item}}"
+    state: present
+  with_items: "{{compilers}}"
+
+
+- name: OpenHPC MPI - install via Yum
+  yum:
+    name: "{{item}}"
+    state: present
+  with_items: "{{mpi_libs}}"
+
+- name: OpenHPC - set default module environment
+  yum:
+    name: "{{ default_env }}"
+    state: present

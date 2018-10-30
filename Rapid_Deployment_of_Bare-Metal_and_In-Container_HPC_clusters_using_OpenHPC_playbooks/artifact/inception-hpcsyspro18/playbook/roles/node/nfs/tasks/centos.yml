@@ -1,0 +1,27 @@
+---
+
+- name: NFS - install via Yum
+  yum:
+    name: nfs-utils
+    state: present
+
+- name: NFS - add /home mount from SMS
+  mount:
+    path: /home
+    src: "{{ sms_ip }}:/home"
+    fstype: nfs
+    opts: nfsvers=3,nodev,nosuid,noatime
+    state: mounted
+
+- name: NFS - make sure mountpoint exists
+  file:
+    path: /opt/ohpc/pub
+    state: directory
+
+- name: NFS - add /opt/ohpc/pub mount from SMS
+  mount:
+    path: /opt/ohpc/pub
+    src: "{{ sms_ip }}:/opt/ohpc/pub"
+    fstype: nfs
+    opts: nfsvers=3,nodev,noatime
+    state: mounted

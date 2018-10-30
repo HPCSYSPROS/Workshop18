@@ -1,0 +1,12 @@
+---
+
+- name: NFS - install via Yum
+  yum:
+    name: nfs-utils
+    state: present
+
+- name: NFS - ensure service is enabled and started
+  service:
+    name: nfs-server
+    enabled: yes
+    state: started

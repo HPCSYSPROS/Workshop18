@@ -1,0 +1,12 @@
+---
+
+- name: Validate network - check internal network interface exists
+  assert:
+    that:
+      - sms_eth_internal in ansible_interfaces
+
+- name: "Validate network - check internal network IP for {{sms_eth_internal}} is {{sms_ip}}"
+  assert:
+    that:
+      - hostvars[inventory_hostname]["ansible_%s" % sms_eth_internal].ipv4.address == sms_ip
+

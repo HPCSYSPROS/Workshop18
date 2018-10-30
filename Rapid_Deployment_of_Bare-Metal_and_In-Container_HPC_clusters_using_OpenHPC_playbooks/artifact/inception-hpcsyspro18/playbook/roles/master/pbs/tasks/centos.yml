@@ -1,0 +1,14 @@
+---
+
+- name: PBS - install via Yum
+  yum:
+    name: pbspro-server-ohpc
+    state: present
+
+- name: PBS - add systemd unit
+  copy:
+    src: pbs.service
+    dest: /etc/systemd/system/pbs.service
+    owner: root
+    group: root
+    mode: 0755

@@ -1,0 +1,7 @@
+---
+
+- name: Validate SELinux - check status is disabled
+  assert:
+    that:
+      - ansible_selinux is defined
+      - (ansible_selinux.status is defined and ansible_selinux.status == "disabled") or ansible_selinux == False

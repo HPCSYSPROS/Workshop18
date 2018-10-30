@@ -1,0 +1,52 @@
+---
+
+- name: xCAT - get list of nodes to check
+  set_fact:
+    nodes_to_check: "{{groups['nodes']}}"
+
+- name: xCAT - check if nodes are defined
+  shell: "lsdef {{hostvars[item]['name']}}"
+  register: r
+  changed_when: r.rc == 1
+  failed_when: r.rc > 1
+  with_items: "{{nodes_to_check}}"
+
+- name: xCAT - define nodes in the database
+  shell: "mkdef -t node {{hostvars[item.item]['name']}} groups=compute,all ip={{item.item}} mac={{hostvars[item.item]['mac']}} netboot=xnba arch=x86_64 bmc={{hostvars[item.item]['bmc']}} bmcusername={{bmc_username}} bmcpassword={{bmc_password}} mgt=ipmi serialport=0 serialspeed=115200"
+  with_items: "{{r.results}}"
+  when: item.changed
+
+- name: xCAT - enable secondary NIC configuration
+  shell: "chdef compute -p postbootscripts=confignics"
+  when: ipoib
+
+- name: xCAT - register IPoIB IPs for each node
+  shell: "chdef {{hostvars[item.item]['name']}} nicips.ib0={{hostvars[item.item]['ib0']}} nictypes.ib0=Infiniband nicnetworks.ib0=ib0"
+  with_items: "{{r.results}}"
+  when:
+    - item.changed
+    - ipoib
+
+- name: xCAT - complete network service configuration
+  shell: "{{item}}"
+  with_items:
+    - "makehosts"
+    - "makenetworks"
+    - "makedhcp -n"
+    - "makedns -n"
+
+- name: xCAT - query install image for stateful cluster
+  shell: "lsdef -t osimage | grep install-compute | awk '{print $1}'"
+  register: osimage_stateful
+
+- name: xCAT - query netboot image for stateless cluster
+  shell: "lsdef -t osimage | grep netboot-compute | awk '{print $1}'"
+  register: osimage_stateless
+
+- name: xCAT - associate stateful provisioning image to compute nodes
+  shell: "nodeset compute osimage={{osimage_stateful.stdout_lines[0]}}"
+  when: xcat_mode == 'stateful'
+
+- name: xCAT - associate stateless provisioning image to compute nodes
+  shell: "nodeset compute osimage={{osimage_stateless.stdout_lines[0]}}"
+  when: xcat_mode == 'stateless'

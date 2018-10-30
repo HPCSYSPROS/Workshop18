@@ -1,0 +1,22 @@
+---
+- hosts: master
+  vars_files:
+    - ../config.yml
+  roles:
+    - validation/config
+    - validation/hostname
+    - validation/selinux
+    - validation/ssh
+    - validation/network
+    - common/proxy
+    - common/firewall
+    - common/ntp
+    - master/squid
+    - repos
+    - master/local_repo
+    - master/ohpc_base
+    - master/xcat_base
+    - master/nfs
+    - master/pbs
+    - ssh
+    - dev_tools

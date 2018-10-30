@@ -1,0 +1,7 @@
+---
+
+- name: Validate SSH - check RSA key exists
+  stat:
+    path: "{{ansible_env.HOME}}/.ssh/id_rsa"
+
+

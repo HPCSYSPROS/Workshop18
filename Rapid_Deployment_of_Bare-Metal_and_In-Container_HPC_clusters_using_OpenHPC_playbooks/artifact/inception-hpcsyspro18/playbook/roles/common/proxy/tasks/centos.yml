@@ -1,0 +1,11 @@
+---
+
+- name: "Proxy - set the Yum proxy"
+  lineinfile:
+    dest: /etc/yum.conf
+    state: present
+    regexp: "proxy=.*"
+    insertafter: EOF
+    line: "proxy=http://{{ proxy_host }}:{{ proxy_port }}/"
+  when: proxy_host != ''
+

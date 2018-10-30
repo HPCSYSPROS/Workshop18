@@ -1,0 +1,64 @@
+---
+
+- name: PBS - add SMS server to pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_SERVER='
+    line: 'PBS_SERVER={{sms_name}}.{{domain_name}}'
+
+- name: PBS - set PBS_LEAF_NAME to SMS server IP in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_LEAF_NAME='
+    line: 'PBS_LEAF_NAME={{sms_ip}}'
+
+- name: PBS - enable server in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_SERVER='
+    line: 'PBS_START_SERVER=1'
+
+- name: PBS - enable scheduler in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_SCHED='
+    line: 'PBS_START_SCHED=1'
+
+- name: PBS - enable comm in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_COMM='
+    line: 'PBS_START_COMM=1'
+
+- name: PBS - enable mom in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_MOM='
+    line: 'PBS_START_MOM=1'
+  when: sms_accept_jobs
+
+- name: PBS - disable mom in pbs.conf
+  lineinfile:
+    path: /etc/pbs.conf
+    regexp: '^PBS_START_MOM='
+    line: 'PBS_START_MOM=0'
+  when: not sms_accept_jobs
+
+- name: PBS - enable and start server
+  service:
+    name: pbs
+    enabled: yes
+    state: started
+
+- name: PBS - wait for the server to complete start up
+  pause:
+    minutes: 1
+
+- name: PBS - enable user environment propagation
+  shell: qmgr -c "set server default_qsub_arguments= -V"
+
+- name: PBS - enable uniform multi-node MPI task distribution
+  shell: qmgr -c "set server resources_default.place=scatter"
+
+- name: PBS - enable support for job accounting
+  shell: qmgr -c "set server job_history_enable=True"

@@ -1,0 +1,10 @@
+---
+
+- name: Validate inventory - check all nodes have required definitions
+  assert:
+    that:
+      - hostvars[item].name is defined
+      - hostvars[item].mac is defined
+      - hostvars[item].bmc is defined
+      - hostvars[item].ib0 is defined
+  with_items: "{{groups['nodes']}}"

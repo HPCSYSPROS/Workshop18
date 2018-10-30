@@ -1,0 +1,6 @@
+---
+
+- name: PBS - install execution client via Yum
+  yum:
+    name: pbspro-execution-ohpc
+    state: present

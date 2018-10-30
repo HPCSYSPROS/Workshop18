@@ -1,0 +1,150 @@
+---
+
+- name: Validate config - check SMS name is defined
+  assert:
+    that:
+      - sms_name is defined
+      - sms_name != none
+      - (sms_name | trim != '')
+
+- name: Validate config - check SMS IP is defined
+  assert:
+    that:
+      - sms_ip is defined
+      - sms_ip != none
+      - (sms_ip | trim != '')
+
+- name: Validate config - check SMS internal network interface is defined
+  assert:
+    that:
+      - sms_eth_internal is defined
+      - sms_eth_internal != none
+      - (sms_eth_internal | trim != '')
+
+- name: Validate config - check that a valid deployment method is defined
+  assert:
+    that:
+      - deploy == "xCAT"
+
+- name: Validate config - check that a valid resource manager is defined
+  assert:
+    that:
+      - resource_manager == "pbs"
+
+- name: Validate config - check if SMS should execute jobs is defined
+  assert:
+    that:
+      - sms_accept_jobs is defined
+      - sms_accept_jobs != none
+      - (sms_accept_jobs | trim != '')
+
+- name: Validate config - check node root password is defined
+  assert:
+    that:
+      - node_root_password is defined
+      - node_root_password != none
+      - (node_root_password | trim != '')
+
+- name: Validate config - check domain name is defined
+  assert:
+    that:
+      - domain_name is defined
+      - domain_name != none
+      - (domain_name | trim != '')
+
+- name: Validate config - check internal network mask is defined
+  assert:
+    that:
+      - internal_netmask is defined
+      - internal_netmask != none
+      - (internal_netmask | trim != '')
+
+- name: Validate config - check NTP server is defined
+  assert:
+    that:
+      - ntp_server is defined
+      - ntp_server != none
+      - (ntp_server | trim != '')
+
+- name: Validate config - check node OS ISO path is defined
+  assert:
+    that:
+      - iso_path is defined
+      - iso_path != none
+      - (iso_path | trim != '')
+
+- name: Validate config - check ISO file exists
+  stat:
+    path: "{{iso_path}}"
+    get_md5: no
+    get_checksum: no
+  register: stat_iso
+  failed_when: stat_iso.stat.exists == False
+
+- name: Validate config - check valid repository type is defined
+  assert:
+    that:
+      - repository_type is defined
+      - "repository_type in ['online', 'cache', 'mirror', 'local']"
+
+- name: Validate config - check local OpenHPC mirror path is defined
+  assert:
+    that:
+      - ohpc_repo_dir is defined
+      - ohpc_repo_dir != none
+      - (ohpc_repo_dir | trim != '')
+  when: repository_type == 'local' or repository_type == 'mirror'
+
+- name: Validate config - check local EPEL mirror path is defined
+  assert:
+    that:
+      - epel_repo_dir is defined
+      - epel_repo_dir != none
+      - (epel_repo_dir | trim != '')
+  when:
+    - repository_type == 'local' or repository_type == 'mirror'
+    - ansible_distribution == 'CentOS'
+
+- name: Validate config - check at least 1 compiler has been defined
+  assert:
+    that:
+      - (compilers|length)>=1
+
+- name: Validate config - check at least 1 MPI library has been defined
+  assert:
+    that:
+      - (mpi_libs|length)>=1
+
+- name: Validate config - check Nagios web password is defined
+  assert:
+    that:
+      - nagios_web_password is defined
+      - nagios_web_password != none
+      - (nagios_web_password | trim != '')
+  when: '"nagios" in enable_extras'
+
+- name: Validate config - check Lustre MGS is defined
+  assert:
+    that:
+      - mgs_fs_name is defined
+      - mgs_fs_name != none
+      - (mgs_fs_name | trim != '')
+  when: '"lustre" in enable_extras'
+
+- name: Validate config - check IPoIB IP for SMS server is defined
+  assert:
+    that:
+      - sms_ipoib is defined
+      - sms_ipoib != none
+      - (sms_ipoib | trim != '')
+  when: ipoib
+
+- name: Validate config - check IPoIB network mask is defined
+  assert:
+    that:
+      - ipoib_netmask is defined
+      - ipoib_netmask != none
+      - (ipoib_netmask | trim != '')
+  when: ipoib
+
+

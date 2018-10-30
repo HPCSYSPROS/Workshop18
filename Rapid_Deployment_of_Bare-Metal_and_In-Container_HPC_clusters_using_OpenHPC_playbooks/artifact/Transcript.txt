@@ -1,0 +1,83 @@
+# This file is a transcript of the quick start video
+# In the video, CentOS is installed on the SMS node
+# and this is where the following tasks are carried out.
+
+# disable the firewall and selinux
+systemctl stop firewalld
+systemctl disable firewalld
+
+vi /etc/sysconfig/selinux
+# set SELINUX=disabled and reboot!
+
+# install epel release and git
+yum install epel-release git
+
+# install ansible
+yum install python-pip
+pip install ansible
+
+# clone the inception repo
+git clone https://github.com/clusterworks/inception.git
+cd inception
+
+# create the configuration file
+cp config.yml.template config.yml
+vi config.yml
+# make required changes to the config
+# sms details
+# path to downloaded CentOS iso
+# network settings
+# proxy if required
+# check repositories will work for you
+# recommend either 'online' or 'cache'
+
+# create an ssh key to use for passwordless ssh
+ssh-keygen
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+
+# add machine with private IP to the hosts file
+echo 192.168.10.1 smshostname smshostname.domain >> /etc/hosts
+
+# make sure you copy the CentOS iso to the path specified in the configuration file
+
+# run the install master playbook
+./run-playbook.sh install_master
+
+# add the worker nodes to the inventory
+vi inventory
+
+# demonstrate that xcat is installed but there are no node definitions yet
+/opt/xcat/bin/lsdef
+
+# run the playbook to install the node definitions
+./run-playbook.sh install_nodes
+
+# run lsdef again to see the nodes have been added
+/opt/xcat/bin/lsdef
+/opt/xcat/bin/lsdef nodename
+
+# boot up the worker nodes and stateful install will be performed via PXE using xCAT
+
+# use the following command to monitor the status
+watch /opt/xcat/bin/lsdef -i status
+
+# run the update nodes playbook once machines are booted in order to install worker node customisations
+./run-playbook.sh update_nodes
+
+# now you can check PBS nodes to see the cluster is up and running!
+/opt/pbs/bin/pbsnodes -a
+
+# add the /opt dirs to your path if you like
+
+# create a new user and SSH keys in order to run a job
+useradd hpcuser
+su hpcuser
+ssh-keygen
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+chmod 640 ~/.ssh/authorized_keys
+exit
+
+# after creating the user, run the update_nodes playbook again to propagate the /etc/passwd file to each node
+./run-playbook.sh update_nodes
+
+# now you can log in as this user, compile some MPI codes, and submit a PBS job

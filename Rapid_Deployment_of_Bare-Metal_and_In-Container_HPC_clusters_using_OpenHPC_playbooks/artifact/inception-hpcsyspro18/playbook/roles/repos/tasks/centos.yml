@@ -1,0 +1,49 @@
+---
+
+- name: "Repositories - add online repositories to /etc/yum.repos.d"
+  yum_repository:
+    name: "{{ item }}"
+    description: "Online repository for {{ item }}"
+    baseurl: "{{ yum_repos[item].url }}"
+    gpgkey: "{{ yum_repos[item].key }}"
+    gpgcheck: "{{ package_signing }}"
+    state: present
+  with_items: "{{ yum_repos }}"
+  when: repository_type == 'online' or repository_type == 'cache'
+
+- name: "Repositories - set the Yum proxy to the local cache"
+  lineinfile:
+    dest: /etc/yum.conf
+    state: present
+    regexp: "proxy=.*"
+    insertafter: EOF
+    line: "proxy=http://{{ sms_name }}.{{ domain_name}}:{{ cache_port }}/"
+  when: repository_type == 'cache'
+
+- name: "Repositories - add the SMS local repository to /etc/yum.repos.d"
+  yum_repository:
+    name: "sms_local_repo"
+    description: "Local repository to distribute individual RPMs to the cluster"
+    baseurl: "http://{{ sms_ip }}//install/local_repo/"
+    gpgcheck: no
+    proxy: "_none_"
+    state: present
+  when: hostvars[inventory_hostname].group_names[0] == "nodes"
+
+- name: "Repositories - check local Yum repo for xCAT node"
+  stat:
+    path: /etc/yum.repos.d/local-repository-0.repo
+  register: yum_xcat_stat
+
+- name: "Repositories - bypass proxy for local Yum repo on xCAT nodes"
+  lineinfile:
+    dest: /etc/yum.repos.d/local-repository-0.repo
+    state: present
+    regexp: "proxy=.*"
+    insertafter: EOF
+    line: "proxy=_none_"
+  when: yum_xcat_stat.stat.exists == True
+
+- name: "Repositories - remove upstream CentOS repositories"
+  command: "rm -rf /etc/yum.repos.d/CentOS-*.repo"
+  when: hostvars[inventory_hostname].group_names[0] == "nodes"
