@@ -1,0 +1,344 @@
+#!/usr/bin/python3
+######
+# cgroups_py:
+# This python script uses cgroups_py to throttle high resource users via systemd user slices
+# When using the CPU throttling, It throttles every user using more that 5 percent CPU.
+# They are throttled to 80% of the cpu time divided by the number of throttled users.
+# CPU usage is measured by reseting the CPU usage counter on each user slice, and measuring the
+# usage after 2 seconds. THe CPU limit is set by using systemd slices
+# Memory throttling is a simple hard limit. Any user using more than 20% of the system memory
+# will have OOM-Killer invoked on their process. This limit is set via systemd slices.
+#########################
+#   System Requirements:
+#   python >= 3.4
+#   python-linuxfd
+#   systemd
+#   system MUST use cgroups-v1, unified cgroups tree (cgroups-v2) is not supported
+########################
+#   Written by:
+#           Curtis J. Maves
+#           cmaves@purdue.edu
+#           Purdue RCAC
+
+from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor
+from errno import ENODEV, ENOENT
+from json import loads
+from os import cpu_count, path
+from pwd import getpwuid
+from re import compile
+from selectors import DefaultSelector, EVENT_READ
+from signal import signal, SIGINT, SIGTERM
+from socket import gethostname
+from subprocess import check_output, Popen, PIPE
+from sys import stderr, stdout
+from time import perf_counter, sleep, strftime, time, localtime
+
+#Configuration
+CPU_THROTTLE = 80
+CPU_THRESHOLD = 5   # threshold to trigger throttling
+MEM_HARD_MAX = 20   # sets the max physical memory throttle. If exceeded the OOM will be invoked
+INTERVAL = 2.0  # This is how often (in seconds) the list of throttled users is updated
+EXEMPT_UIDS = [0]    # comma-separated list of UIDs (as integers) that are not throttled
+
+#class that throttles the users.
+class Throttler:
+    _us_cmd = "systemctl list-units user-*.slice | grep -oE 'user-[^ ]*.slice' || [ $? = 1 ]" # command used to get active user slices
+    _NumberOfCores = cpu_count() # number of cpu's on machine
+
+    # initialize variables need for Throttler instance
+    def __init__(self, cpu=True, mem=False, t_print=True, o_mail=True, username=False, interval=INTERVAL, cpu_threshold=CPU_THRESHOLD, cpu_throttle=CPU_THROTTLE, mem_hard_max=MEM_HARD_MAX):
+        self._cpu_percent_throttle = self._NumberOfCores * cpu_throttle # maximum percent cpu time to be split between high cpu users
+        self._cpu_percent_threshold = self._NumberOfCores * cpu_threshold
+        self._cpu_time_threshold = self._NumberOfCores * 10**9 * cpu_threshold / 100 # thershold to be considered a high cpu user
+        self.interval = interval # iterval to sleep in each iteration of the throttler
+        self._thread_pool = ThreadPoolExecutor(max_workers=4) # thread pool to do threated stuff
+        self._mem_percent_hard = mem_hard_max # this is the maximum amount of physical memory an one user should ever be able to use
+
+        self._cpu = cpu # stores whether this instance of throttler has cpu enabled
+        if cpu:
+            self._cpu_throttled_slices = set() # stores a set throttled user slices
+            self._cpu_files = {} # stores a dict of files needed to measure cpu usage for each user
+
+        self._mem = mem # stores whether this instance of throttle has mem enabled
+        if mem:
+            self._mem_files = {} # stores dict containing files need to measure and throttle mem+sw usage for each user
+            self.set_max_memory() # set variables needed for self._mem_throttle()
+            self._thread_pool.submit(self._jctl_parse)
+        else:
+            self._mem_set = False
+
+        self.t_print = t_print #stores whether a message about who is being throttled should be printed
+        self.o_mail = o_mail
+        self.username =  username #stores whether the above message should print usernames of users (or user-<uid>.slice)
+        self._pt_out = {}
+
+        self._exempt_slices = set(("user-%d.slice" % uid for uid in EXEMPT_UIDS))  # stores the exempt user slices from throttling (typically just root)
+        signal(SIGINT, self.terminate) # set the signals to cleanly exit
+        signal(SIGTERM, self.terminate) # set the signals to cleanly exit
+        self._user_slices = set() # stores the active user slices known by the throttler instande
+
+    # set the variables needed by self._mem_throttle()
+    def set_max_memory(self):
+        # get the maximum amount of memory and swap on a system
+        with open('/proc/meminfo') as meminfo:
+            for line in meminfo:
+                if line.startswith('MemTotal:'):
+                    self._mem_bytes_max = int(line.split()[1]) * 1024 # store the max physical memory on a sytem
+                    break
+        self._mem_bytes_hard = self._mem_bytes_max * self._mem_percent_hard // 100 # stores the hard limit for physical memory usages in bytes
+        self._mem_set = True # for possible later use
+        self.hostname = gethostname()
+
+    _utudict = {} # stores a known dict of user-<uid> to username
+    @classmethod # this could theortically be called without an instance of the class
+    def slice_to_username(cls, u_slice): # converts a user slices to a username
+        if u_slice not in cls._utudict:
+            cls._utudict[u_slice] = getpwuid(int(u_slice[5:-6])).pw_name
+        return cls._utudict[u_slice]
+
+    def _email_oom(self, user_slice, proc_list):
+        user_name =  self.slice_to_username(user_slice)
+        mail_proc = Popen(['/bin/mail', '-s', 'Process killed on %s' % self.hostname, '-r', 'rcac-help@purdue.edu', '%s@purdue.edu' % user_name], stdin=PIPE, universal_newlines=True)
+        try:
+            mail_proc.stdin.write('Hello %s,\n' % user_name)
+            #print('On %s on %s, %d process(es) were killed because of excessive memory usage:' % (self.hostname, strftime('%Y-%m-%d'), len(proc_list)))
+            mail_proc.stdin.write('On %s on %s, %d process(es) were killed because of excessive memory usage:\n' % (self.hostname, strftime('%Y-%m-%d'), len(proc_list)))
+            #print('TIME          PID  TOTAL_VM  ANON_RSS  FILE_RSS SHMEM_RSS  NAME')
+            mail_proc.stdin.write('TIME          PID  TOTAL_VM  ANON_RSS  FILE_RSS SHMEM_RSS  NAME\n')
+            for proc in proc_list:
+                proc_time = localtime(proc['time'])
+                #print('{}{:>9}{:>8.1f}GB{:>8.1f}GB{:>8.1f}GB{:>8.1f}GB  {}'.format(strftime("%H:%M:%S", proc_time), proc['pid'], proc['total'] / 1048576, proc['anon'] / 1048576, proc['file'] / 1048576, proc['shmem'] / 1048576, proc['name']), file=stderr)
+                mail_proc.stdin.write('{}{:>9}{:>8.1f}GB{:>8.1f}GB{:>8.1f}GB{:>8.1f}GB  {}\n'.format(strftime("%H:%M:%S", proc_time), proc['pid'], proc['total'] / 1048576, proc['anon'] / 1048576, proc['file'] / 1048576, proc['shmem'] / 1048576, proc['name']))
+
+            help_mes = '\n\n'.join(('\nProcesses like this should be run in jobs submitted to the PBS batch job scheduling system via the "qsub" command. Information about PBS can be found on the cluster user guide: https://www.rcac.purdue.edu/compute/%s/guide/#run_pbs' % self.hostname.split('-', maxsplit=1)[0],
+                                    'Cluster front-ends are shared resources used by all cluster users. Running resource-intensive jobs on the front-ends may degrade performance for other users on the front-end. Please be respectful of other people on front-ends and submit resource-intensive work to the cluster through PBS.',
+                                    'For further information about acceptable front-end usage visit: https://www.rcac.purdue.edu/policies/frontenduse/',
+                                    'If you have any questions about this notice or about running PBS jobs please contact ITaP Research Computing staff by replying to rcac-help@purdue.edu.'))
+            mail_proc.stdin.write(help_mes)
+        finally:
+            mail_proc.stdin.close()
+
+
+    def _print_throttled(self, usage_dict, amount): # print the throttled usernames for each iteration or oom-killer events
+        # select which message to print
+        fmt_str = "{} are being throttled to {:d}% ({{<user-slice>, <usage-%>}})"
+        if self.username: # print username or user-slice
+            fmt_str = "Users' slices " + fmt_str
+            print_dict = {self.slice_to_username(usage_item[0]): usage_item[1] for usage_item in usage_dict.items()}
+        else:
+            print_dict = usage_dict
+            fmt_str = "Slices " + fmt_str
+
+        print(fmt_str.format(print_dict, amount))
+        stdout.flush()
+
+    def _cpu_throttle(self, added_slices): # throttles the high cpu users
+        first_bad_slices = set() # stores the possibly logged out user to be removed from active slice list (self._user_slices)
+        # add new slices
+        for key in added_slices:
+            if key not in self._cpu_files:
+                try:
+                    self._cpu_files[key] = open('/sys/fs/cgroup/cpu/user.slice/%s/cpuacct.usage' % key, 'wb+', buffering=0)
+                except FileNotFoundError as e:
+                    first_bad_slices.add(key)
+
+        # iterates through active user_slices, and resets their cpuacct.usage so we can see how much CPU time they use of the the self.interval time frame
+        for key in self._cpu_files:
+            try:
+                self._cpu_files[key].write(b'0\n') # reset cpu time usage counter
+            except OSError as e:
+                first_bad_slices.add(key)
+                if e.errno == ENODEV: # catch write error if they logout after opening file
+                    self._cpu_files[key].close()
+                else:
+                    raise e
+
+        start = perf_counter() # record start time
+        sleep(INTERVAL) # sleep for interval so we can measure average CPU usage over the interval
+
+        # remove bad (probably logged out) users from files
+        for key in first_bad_slices:
+            self._cpu_files.pop(key, None)
+
+        # iterate through active user-slices and measure the cpu usgage
+        second_bad_slices = set() # same a first_bad_slices but for second loop
+        hc_slices = set() # store the high cpu usage slices
+        cpu_usage = {} # stores dict of cpu usages to be printed by _print_throttled if enabled
+        for key in self._cpu_files:
+            usage = self._cpu_files[key]
+            try:
+                usage.seek(0)
+                usage_time = int(usage.read()) / (perf_counter() - start)
+                if usage_time > self._cpu_time_threshold:
+                    hc_slices.add(key)
+                    cpu_usage[key] = "%d%%" % (usage_time // 10**7)
+
+            except OSError as e:
+                second_bad_slices.add(key)
+                if e.errno == ENODEV: # catch error if user logs out during self.iterval sleep
+                    usage.close()
+                else:
+                    raise e
+
+        # remove bad (probably logged out) users from files
+        for key in second_bad_slices:
+            del self._cpu_files[key]
+
+        # compute high throttle for each user
+        if len(hc_slices) > 0:
+            throttle = self._cpu_percent_throttle // len(hc_slices)
+
+            #throttle should not be less than threshold or else users could get bounced in an out of the throttle
+            if throttle < self._cpu_percent_threshold:
+                throttle = self._cpu_percent_threshold
+
+            # print throttle message
+            if self.t_print:
+                self._thread_pool.submit(self._print_throttled, cpu_usage, throttle)
+
+        # throttle high cpu users
+        for hc_slice in hc_slices:
+                Popen(['systemctl', 'set-property', '--runtime', hc_slice, 'CPUQuota=%d%%' % throttle])
+
+        # dethrottle users that have stopeed using cpu time
+        bad_slices = first_bad_slices | second_bad_slices
+        for hc_slice in self._cpu_throttled_slices - hc_slices - bad_slices:
+                Popen(['systemctl', 'set-property', '--runtime', hc_slice, 'CPUQuota=%d%%' % self._cpu_percent_throttle])
+
+        self._cpu_throttled_slices = hc_slices # store the throttled slices for the next iteration
+        return bad_slices # resturn a set of bad slices to be removed from active user-slices set
+
+    def _print_killed(self, user_slice, killed_procs):
+        fmt_str = " invoked to OOM-killer on the following procs: {}"
+        if self.username:
+            fmt_str = "User %s" % self.slice_to_username(user_slice) + fmt_str
+        else:
+            fmt_str = 'Slice ' + user_slice + fmt_str
+
+        print(fmt_str.format(killed_procs))
+        stdout.flush()
+
+    def _jctl_parse(self):
+        start_time = time()
+        self._jctl_proc = Popen(['journalctl', '--follow', '--identifier=kernel', '--output=json'], stdout=PIPE, universal_newlines=True)
+        task_re = compile('Task in /user\.slice/(user-[0-9]+\.slice) killed as a result of limit of /user\.slice/\\1')
+        killed_re = compile('Killed process ([0-9]+) \((.+)\) total-vm:([0-9]+)kB, anon-rss:([0-9]+)kB, file-rss:([0-9]+)kB, shmem-rss:([0-9])+kB')
+        sel = DefaultSelector()
+        sel.register(self._jctl_proc.stdout, EVENT_READ)
+        killed_procs = []
+        for line in self._jctl_proc.stdout:
+            j = loads(line)
+            message_time = int(j['__REALTIME_TIMESTAMP']) / 1000000
+            if message_time < start_time:
+                continue
+
+            #print(j['MESSAGE'])
+            match = task_re.fullmatch(j['MESSAGE'])
+            if match:
+                if len(killed_procs) > 0:
+                    if self.o_email:
+                        self._thread_pool.submit(self._email_oom, current_slice, killed_procs)
+                    if self.t_print:
+                        self._thread_pool.submit(self._print_killed, current_slice, killed_procs)
+                    killed_procs = []
+                current_slice = match.group(1)
+            else:
+                match = killed_re.fullmatch(j['MESSAGE'])
+                if match:
+                    killed_procs.append({'pid': int(match.group(1)), 'name': match.group(2), 'total': int(match.group(3)), 'anon': int(match.group(4)), 'file': int(match.group(5)), 'shmem': int(match.group(6)), 'time': message_time})
+
+            if len(sel.select(timeout=5)) == 0 and len(killed_procs) > 0:
+                if self.o_email:
+                    self._thread_pool.submit(self._email_oom, current_slice, killed_procs)
+                if self.t_print:
+                    self._thread_pool.submit(self._print_killed, current_slice, killed_procs)
+                killed_procs = []
+
+    def _mem_throttle(self, added_slices): # throttle high mem users
+        # set memory limit
+        for key in added_slices:
+            Popen(['systemctl', 'set-property', '--runtime', key, 'MemoryLimit=%d' % self._mem_bytes_hard])
+
+        sleep(self.interval)
+
+    # perform one iteration of the enabled _mem and _cpu throttling
+    def iterate(self):
+        # fetch the most up-to-date list of user slices
+        updated_slices = set(check_output(self._us_cmd, shell=True, universal_newlines=True).splitlines()) - self._exempt_slices
+        added_slices = updated_slices - self._user_slices
+        self._user_slices = updated_slices
+
+        # start CPU throttle iteration thread if enabled
+        if self._cpu:
+            cpu_proc = self._thread_pool.submit(self._cpu_throttle, added_slices)
+
+        # start MEM throttle iteration thread if enabled
+        if self._mem:
+            mem_proc = self._thread_pool.submit(self._mem_throttle, added_slices)
+
+        # get the result of the enabled throttle threads and raise error if the threads didn't exit cleanly
+        if self._cpu:
+            if cpu_proc.exception():
+                raise cpu_proc.exception()
+            self._user_slices -= cpu_proc.result() # remove bad threads from active list
+        if self._mem and mem_proc.exception():
+            raise mem_proc.exception()
+
+    # resets user_slices if cgroups_py terminates
+    def cpu_terminate(self, user_slices):
+        cpu_percent_max = self._NumberOfCores * 100 # maximum percent cpu time
+        for user_slice in user_slices:
+            Popen(['systemctl', 'set-property', '--runtime', user_slice, 'CPUQuota=%d%%' % cpu_percent_max])
+
+    # resets user_slices if cgroups_py terminates
+    def mem_terminate(self, user_slices):
+        for key in user_slices:
+            Popen(['systemctl', 'set-property', '--runtime', key, 'MemoryLimit=%d' % self._mem_bytes_max])
+
+    # used to cleanly exit cgroups_py
+    # signal() is typcially used to intercept SIGTERM and SIGINT with this function
+    def terminate(self, signum, frame):
+        if not (self._cpu or self._mem):
+            print("\n", signum, "signal caught! Terminating...", file=stderr)
+            exit(0)
+
+        print("\n", signum, "signal caught! Waiting for final iteration, then resetting user_slices and terminating.", file=stderr)
+        self._jctl_proc.terminate()
+        self._thread_pool.shutdown() # let the currently iterating threads finish up
+        print("Resetting user_slices and terminating...", file=stderr)
+        user_slices = check_output(self._us_cmd, shell=True, universal_newlines=True).splitlines()
+        if self._cpu:
+            print("Resetting cpu cgroups...", file=stderr)
+            self.cpu_terminate(user_slices)
+        if self._mem:
+            print("Resetting memory cgroups...", file=stderr)
+            self.mem_terminate(user_slices)
+        exit(0)
+
+    # throttle CPU and MEM until program exits
+    def forever(self):
+        if not (self._cpu or self._mem):
+            return
+        i = self.iterate # reduce cost of . lookup
+        while True:
+            i()
+
+def main():
+    # parse options
+    parser = ArgumentParser(description="""This python script uses cgroups_py to throttle high resource users via systemd user slices.
+It throttles CPU and Memory usage.""")
+    parser.add_argument('-m', action='store_false', dest="MEMORY", help="Disables the memory throttler.\n")
+    parser.add_argument('-c', action='store_false', dest="CPU", help="Disable the cpu throttler\n")
+    parser.add_argument('-u', action='store_false', dest="USER", help="Print the throttled user sllices instead of the usernames. Useful for debugging. Does nothing if -q is specified")
+    parser.add_argument('-q', action='store_false', dest='PRINT', help="Quiet mode. Will not print anything to stdout")
+    parser.add_argument('-e', action='store_false', dest='EMAIL', help='Will disable the email functionality of OOM-killer notifier. Does nothing if -m is specified')
+    args = parser.parse_args()
+
+    # create Throttler instance and start throttling until program closes
+    t = Throttler(cpu=args.CPU, mem=args.MEMORY, t_print=args.PRINT, username=args.USER, o_mail=args.EMAIL)
+    t.forever()
+
+if __name__ == '__main__':
+    main()
+

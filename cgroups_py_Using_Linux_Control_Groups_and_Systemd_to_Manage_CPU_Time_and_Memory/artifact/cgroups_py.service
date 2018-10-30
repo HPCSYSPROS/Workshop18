@@ -1,0 +1,10 @@
+[Unit]
+Description=cgroups_py CPU throttler for systemd
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/cgroups_py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
