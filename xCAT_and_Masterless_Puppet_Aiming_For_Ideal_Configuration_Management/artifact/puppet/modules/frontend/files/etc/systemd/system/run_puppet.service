@@ -1,0 +1,12 @@
+[Unit]
+Description=Runs Puppet once after booting
+After=multi-user.target xcatpostinit1.service
+
+[Service]
+Type=forking
+ExecStart=/usr/site/rcac/sbin/run_puppet
+TimeoutSec=0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

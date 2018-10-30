@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# check if an argument is given or not
+if [[ ! -z "$1" ]]; then
+	# splay Puppet runs across 30 minutes
+	/usr/bin/sleep $((RANDOM % 1800)) 2>/dev/null
+fi
+
+cd /etc/puppet
+BRANCH=$(/usr/bin/git rev-parse --abbrev-ref HEAD)
+/usr/bin/git pull | /usr/bin/logger -t gitupdate -s
+/usr/bin/echo -e "\n\n\t\t\t\tRunning Puppet on branch ${BRANCH}\n\n"
+/usr/bin/puppet apply --color=false --hiera_config=/etc/puppet/hiera.yaml /etc/puppet/manifests/common.pp 2>&1 | /usr/bin/logger -t puppet -s
+/usr/bin/puppet apply --color=false --hiera_config=/etc/puppet/hiera.yaml /etc/puppet/manifests/compute.pp 2>&1 | /usr/bin/logger -t puppet -s
+
+exit 0

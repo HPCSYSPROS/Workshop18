@@ -1,0 +1,1 @@
+30 */4 * * * root /usr/site/rcac/sbin/run_puppet --splay 2>/dev/null
