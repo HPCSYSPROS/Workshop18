@@ -1,4 +1,4 @@
-# Making Container Easier with HPC Container Maker
+# Making Containers Easier with HPC Container Maker
 
 **Authors:**
 * Scott McMillan, Nvidia Corporation
