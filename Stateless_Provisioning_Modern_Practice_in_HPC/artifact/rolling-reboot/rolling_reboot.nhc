@@ -3,7 +3,7 @@
 # SLURM health check program
 # ulf.tigerstedt@csc.fi 2012
 # johan.guldmyr@csc.fi 2014
-# john.blaas@colorado.edu 2017
+# john.blaas@colorado.edu 2017-19
 # 
 # Usage:
 # scontrol update node=ae5 state=drain reason=reboot
@@ -17,95 +17,102 @@ HOSTNAME=`hostname -s`
 DEBUG=""
 TIMEOUT=900
 
+# Grab information on the node in one line
 STATELINE=`scontrol -o show node $HOSTNAME`
 # Check if this is a SLURM worker node at all
 if [ $? = 1 ] ; then
-	#echo Not a slurm node
-	exit
+    #echo Not a slurm node
+    exit
 fi
 if [ "$1" = "-d" ]; then
-	DEBUG="1"
+    DEBUG="1"
 fi
 
 check_reboot_slurm() {
 # The name of this function is defined in nhc.conf as a check.
 
-for a in $STATELINE; do
-	LABEL=`echo $a | cut -d = -f 1`
-	PARAMETER=`echo $a | cut -d = -f 2`
-	
-	if [ $LABEL = "Reason" ]; then 
-		REASON=$PARAMETER
-	fi
-	if [ $LABEL = "State" ]; then 
-		STATE=$PARAMETER
-	fi
-done
+# do some processing on the stateline variable, we break the line up into KV pairs and then use awk to display
+# the correct value of the pair
+STATE=`echo $STATELINE | sed -r 's/[[:alnum:]]+=/\n&/g' | awk -F= '$1=="State"{print $2}'`
+REASON=`echo $STATELINE | sed -r 's/[[:alnum:]]+=/\n&/g' | awk -F= '$1=="Reason"{print $2}'`
+
 if [ -n "$DEBUG" ]; then echo Slurm thinks $HOSTNAME has STATE=$STATE and REASON=$REASON; fi
 
-if [ "$REASON" = "rebooting" ]; then
-	if [ "$STATE" = "DOWN+DRAIN" -o "$STATE" = "IDLE+DRAIN" ]; then
-		if [ -n "$DEBUG" ]; then echo Resuming after reboot ; fi
-		# Bring up GPFS before RESUMING service
-		/usr/lpp/mmfs/bin/mmstartup
-        # Sleep for a bit to wait for GPFS to make connections to the NSD servers
-		sleep 30
-        # Now mount all GPFS filesystems
-		/usr/lpp/mmfs/bin/mmmount all
-        # Create an event in our slurm InfluxDB database
-                curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="Rolling Reboot",message="Host ready for production",tags="slurm"'
-		# Set node back to production
-		scontrol update NodeName=$HOSTNAME state=RESUME reason=""
-	fi
+if [[ $REASON = *"rebooting"* ]]; then
+    if [ -n "$DEBUG" ]; then echo Resuming after reboot ; fi
+    # Try to get GPFS mounted before RESUMING service
+    /usr/lpp/mmfs/bin/mmsdrrestore
+    sleep 15
+    /usr/lpp/mmfs/bin/mmstartup
+    sleep 15
+    /usr/lpp/mmfs/bin/mmmount all
+    # Set node back to production
+    echo "I am returning this node back to production following a successful reboot" | /curc/admin/scripts/slacktee -p -t "Releasing node $(hostname) back to production" -a "good"
+    scontrol update NodeName=$HOSTNAME state=RESUME reason=""
 fi
 
-if [ "$REASON" = "gpfs-restarting" ]; then
-        if [ "$STATE" = "DOWN+DRAIN" -o "$STATE" = "IDLE+DRAIN" ]; then
-                if [ -n "$DEBUG" ]; then echo Resuming after reboot ; fi
-                # Bring up GPFS before RESUMING service
-                /usr/lpp/mmfs/bin/mmstartup
-                # Sleep for a bit to wait for GPFS to make connections to the NSD servers
-                sleep 30
-                # Now mount all GPFS filesystems
-                /usr/lpp/mmfs/bin/mmmount all
-                # Create an event in our slurm InfluxDB database
-                curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="GPFS Configuration Complete",message="Host ready for production",tags="slurm,gpfs"'
-                # Set node back to production
-                scontrol update NodeName=$HOSTNAME state=RESUME reason=""
-        fi
-fi
-
-if [ "$REASON" = "gpfs-restart" -a "$STATE" = "IDLE+DRAIN" ]; then
+if [[ $REASON = *"update"* ]]; then
+    if [ $STATE = "IDLE+DRAIN" -o $STATE = "RESERVED" -o $STATE = "DOWN+IDLE" -o $STATE = "DOWN" -o $STATE = "RESERVED+DRAIN" -o $STATE = "DOWN+RESERVED" -o $STATE = "DOWN+DRAIN" -o $STATE = "MAINT+DRAIN" ]; then
         if [ -n "$DEBUG" ]; then echo Rebooting ; fi
         sleep 2
-        # Shutdown GPFS and give it 30 seconds to complete
-        mmshutdown
-        sleep 30
-        # Create an event in our slurm InfluxDB database
-        curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="GPFS Configuration Starting",message="GPFS configuration being applied",tags="slurm,gpfs"
-        # stop slurm to ensure another NHC does not run again while we are updating
-        service slurm stop
-        sleep 2
-        # Set the slurm reason
-        scontrol update NodeName=$HOSTNAME state=DOWN reason="gpfs-restarting"
-        # Run puppet agent to pull in new config, part of our config forces slurm to be started again
-        puppet agent -t
-fi
-
-if [ "$REASON" = "reboot" -a "$STATE" = "IDLE+DRAIN" ]; then
-	if [ -n "$DEBUG" ]; then echo Rebooting ; fi
-	sleep 2
-        curl -i -ss -XPOST "http://influx1:8086/write?db=slurmlog" --data-binary 'slurm,host='"$HOSTNAME"' title="Rolling Reboot",message="Rebooting for Updates",tags="slurm"'
         # Shutdown GPFS and give it 30 seconds
         mmshutdown
         sleep 30
-	# stop slurm just in case
-	service slurm stop
-	sleep 2
-	scontrol update NodeName=$HOSTNAME state=DOWN reason=rebooting
-	/sbin/reboot
+        # stop slurm just in case
+        scontrol update NodeName=$HOSTNAME state=DOWN reason="rebooting"
+        echo "I am starting the reboot process on this node since its Reason was marked as update" | /curc/admin/scripts/slacktee -p -t "Rebooting node $(hostname)" -a "good" 
+        service slurm stop
+        sleep 2
+        /sbin/reboot
+    fi
+fi
+
+# Start remediation portion of code
+if [[ $REASON = *"Kill task failed"* ]]; then
+    if [ $STATE = "IDLE+DRAIN" -o $STATE = "RESERVED" -o $STATE = "DOWN+IDLE" -o $STATE = "DOWN" -o $STATE = "RESERVED+DRAIN" -o $STATE = "DOWN+RESERVED" -o $STATE = "DOWN+DRAIN" -o $STATE = "MAINT+DRAIN" ]; then
+        if [ -n "$DEBUG" ]; then echo Rebooting ; fi
+        sleep 2
+        # Shutdown GPFS and give it 30 seconds
+        mmshutdown
+        sleep 30
+        # stop slurm just in case
+        scontrol update NodeName=$HOSTNAME state=DOWN reason="rebooting"
+        echo "I noticed this node has a Reason of Kill task failed, I am going to reboot this node to resolve the issue" | /curc/admin/scripts/slacktee -p -t "Rebooting node $(hostname) because of Reason Kill task failed" -a "warning"
+        service slurm stop
+        sleep 2
+        /sbin/reboot
+    fi
+fi
+
+if [[ $REASON = *"Service gpfs-summit.mount"* ]]; then
+    if [ $STATE = "IDLE+DRAIN" -o $STATE = "RESERVED" -o $STATE = "DOWN+IDLE" -o $STATE = "DOWN" -o $STATE = "RESERVED+DRAIN" -o $STATE = "DOWN+RESERVED" -o $STATE = "DOWN+DRAIN" -o $STATE = "MAINT+DRAIN" ]; then
+        if /usr/lpp/mmfs/bin/mmsdrrestore ; then
+            /usr/lpp/mmfs/bin/mmstartup
+            sleep 20
+            /usr/lpp/mmfs/bin/mmmount all
+            echo "I noticed this node didn't have GPFS mounted, so I went ahead and issued a mmsdrrestore and successfully started and mounted GPFS." | /curc/admin/scripts/slacktee -p -t "Started GPFS on $(hostname) after detecting the lack of GPFS mounts" -a "good"
+        else
+            echo "This is embarrassing, I was unable to get GPFS mounted. Please assist me in returning this node to service" | /curc/admin/scripts/slacktee -p -t "Setting node $(hostname) to state of down" -a "danger"
+            scontrol update NodeName=$HOSTNAME state=DOWN reason="Issues with GPFS"
+        fi
+    fi
+fi
+
+if [[ $REASON = *"/gpfs/summit not mounted"* ]]; then
+    if [ $STATE = "IDLE+DRAIN" -o $STATE = "RESERVED" -o $STATE = "DOWN+IDLE" -o $STATE = "DOWN" -o $STATE = "RESERVED+DRAIN" -o $STATE = "DOWN+RESERVED" -o $STATE = "DOWN+DRAIN" -o $STATE = "MAINT+DRAIN" ]; then
+        if /usr/lpp/mmfs/bin/mmsdrrestore ; then
+            /usr/lpp/mmfs/bin/mmstartup
+            sleep 20
+            /usr/lpp/mmfs/bin/mmmount all
+            echo "I noticed this node didn't have GPFS mounted, so I went ahead and issued a mmsdrrestore and successfully started and mounted GPFS." | /curc/admin/scripts/slacktee -p -t "Started GPFS on $(hostname) after detecting the lack of GPFS mounts" -a "good"
+        else
+            echo "This is embarrassing, I was unable to get GPFS mounted. Please assist me in returning this node to service" | /curc/admin/scripts/slacktee -p -t "Setting node $(hostname) to state of down" -a "danger"
+            scontrol update NodeName=$HOSTNAME state=DOWN reason="Issues with GPFS"
+        fi
+    fi
 fi
 
 if [ -n "$DEBUG" ]; then echo Health check done; fi
 
 }
+
