@@ -1,5 +1,7 @@
 # Next-generation cluster management architecture and software
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3552990.svg)](https://doi.org/10.5281/zenodo.3552990)
+
 **Authors:**
 * Paul Peltz Jr., Los Alamos National Laboratory
 * Lowell Wofford, Los Alamos National Laboratory
