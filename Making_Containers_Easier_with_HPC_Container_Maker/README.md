@@ -1,5 +1,7 @@
 # Making Containers Easier with HPC Container Maker
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3552972.svg)](https://doi.org/10.5281/zenodo.3552972)
+
 **Authors:**
 * Scott McMillan, Nvidia Corporation
 
