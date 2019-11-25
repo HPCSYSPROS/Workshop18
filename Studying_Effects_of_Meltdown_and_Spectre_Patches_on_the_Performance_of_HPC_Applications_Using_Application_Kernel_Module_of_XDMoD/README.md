@@ -1,5 +1,7 @@
 # Studying Effects of Meltdown and Spectre Patches on the Performance of HPC Applications Using Application Kernel Module of XDMoD
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3552963.svg)](https://doi.org/10.5281/zenodo.3552963)
+
 **Authors:**
 * Nikolay A. Simakov, State University of New York at Buffalo
 * Martins D. Innus, State University of New York at Buffalo
