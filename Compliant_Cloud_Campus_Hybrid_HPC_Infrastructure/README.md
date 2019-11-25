@@ -1,5 +1,7 @@
 # Compliant Cloud+Campus Hybrid HPC Infrastructure
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3552966.svg)](https://doi.org/10.5281/zenodo.3552966)
+
 **Authors:** 
 * Matt Vander Werf, University of Notre Dame
 * Brenden Judson, University of Notre Dame
