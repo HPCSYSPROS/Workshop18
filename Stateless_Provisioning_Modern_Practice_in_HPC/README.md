@@ -1,5 +1,7 @@
 # Stateless Provisioning: Modern Practice in HPC
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3552982.svg)](https://doi.org/10.5281/zenodo.3552982)
+
 **Authors:** 
 * John Blaas, University of Colorado
 * John Roberts, Argonne National Laboratory
