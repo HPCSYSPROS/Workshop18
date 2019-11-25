@@ -1,5 +1,7 @@
 # Rapid Deployment of Bare-Metal and In-Container HPC clusters using OpenHPC playbooks
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3552976.svg)](https://doi.org/10.5281/zenodo.3552976)
+
 **Authors:**
 * Joshua Higgins, University of Huddersfield
 * Taha Al-Jody, University of Huddersfield
