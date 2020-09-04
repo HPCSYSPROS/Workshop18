@@ -69,7 +69,7 @@ class Throttler:
             self._mem_set = False
 
         self.t_print = t_print #stores whether a message about who is being throttled should be printed
-        self.o_mail = o_mail
+        self.o_email = o_mail
         self.username =  username #stores whether the above message should print usernames of users (or user-<uid>.slice)
         self._pt_out = {}
 
